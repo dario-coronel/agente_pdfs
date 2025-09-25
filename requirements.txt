@@ -1,2 +1,2 @@
 pymupdf
-sqlite3  # (viene con Python, no hace falta instalar)
+# sqlite3 viene incluido con Python, no necesita instalación separada
