@@ -7,22 +7,12 @@ import logging
 from pathlib import Path
 from processors import BatchProcessor
 from config import INPUT_DIR, LOGGING_CONFIG
+from utils import setup_advanced_logging
 
 
 def setup_logging():
-    """Configura el sistema de logging"""
-    # Crear directorio de logs si no existe
-    log_dir = Path(LOGGING_CONFIG["log_file"]).parent
-    log_dir.mkdir(exist_ok=True)
-    
-    logging.basicConfig(
-        level=getattr(logging, LOGGING_CONFIG["level"]),
-        format=LOGGING_CONFIG["format"],
-        handlers=[
-            logging.FileHandler(LOGGING_CONFIG["log_file"]),
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
+    """Configura el sistema de logging avanzado"""
+    setup_advanced_logging()
 
 
 def print_banner():
@@ -71,7 +61,7 @@ def main():
         # Banner de inicio
         print_banner()
         
-        logger.info("🚀 Iniciando Agente Clasificador PDF v2.0")
+        logger.info("Iniciando Agente Clasificador PDF v2.0 con clasificacion inteligente")
         
         # Verificar directorio de entrada
         if not os.path.exists(INPUT_DIR):

@@ -1,14 +1,15 @@
 """
-Procesador principal de documentos PDF
+Procesador principal de documentos PDF con clasificación inteligente
 """
 import os
 import sqlite3
 import logging
+import json
 from datetime import datetime
 from typing import Optional, Dict
 from config import DB_PATH, OUTPUT_DIR, DB_SCHEMA
 from extractors import TextExtractor, MetadataExtractor
-from classifiers import DocumentClassifier
+from classifiers import IntelligentClassifier
 from validators import PDFValidator
 
 logger = logging.getLogger(__name__)
@@ -17,10 +18,13 @@ logger = logging.getLogger(__name__)
 class DocumentProcessor:
     """Procesador principal que coordina la extracción, clasificación y almacenamiento"""
     
-    def __init__(self):
+    def __init__(self, enable_ml: bool = True, enable_layout: bool = True):
         self.text_extractor = TextExtractor()
         self.metadata_extractor = MetadataExtractor()
-        self.classifier = DocumentClassifier()
+        self.intelligent_classifier = IntelligentClassifier(
+            enable_ml=enable_ml, 
+            enable_layout=enable_layout
+        )
         self.pdf_validator = PDFValidator()
         self._init_database()
     
@@ -76,10 +80,13 @@ class DocumentProcessor:
                 result["error"] = "No se pudo extraer texto del PDF"
                 return result
             
-            # 3. Clasificar documento
-            doc_type, confidence = self.classifier.classify_document(text)
+            # 3. Clasificación inteligente
+            classification_result = self.intelligent_classifier.classify_document(text, file_path)
+            doc_type = classification_result["final_classification"]
+            confidence = classification_result["final_confidence"]
             result["classification"] = doc_type
             result["confidence"] = confidence
+            result["classification_analysis"] = classification_result
             
             # 4. Extraer metadatos
             metadata = self.metadata_extractor.extract_all_metadata(text)
@@ -94,7 +101,8 @@ class DocumentProcessor:
                 filename=os.path.basename(file_path),
                 doc_type=doc_type,
                 confidence=confidence,
-                metadata=metadata
+                metadata=metadata,
+                classification_result=classification_result
             )
             
             result["success"] = True
@@ -139,15 +147,17 @@ class DocumentProcessor:
         
         return dest_path
     
-    def _save_to_database(self, filename: str, doc_type: str, confidence: float, metadata: Dict):
+    def _save_to_database(self, filename: str, doc_type: str, confidence: float, 
+                         metadata: Dict, classification_result: Dict = None):
         """
-        Guarda la información del documento en la base de datos
+        Guarda la información del documento en la base de datos con datos de clasificación inteligente
         
         Args:
             filename: Nombre del archivo
             doc_type: Tipo de documento
             confidence: Confianza de la clasificación
             metadata: Metadatos extraídos
+            classification_result: Resultado completo de la clasificación inteligente
         """
         try:
             conn = sqlite3.connect(DB_PATH)
@@ -164,14 +174,43 @@ class DocumentProcessor:
             # Usar el primer monto encontrado
             amount = amounts[0] if amounts else None
             
+            # Información adicional de la clasificación inteligente
+            supplier_id = None
+            classification_details = None
+            
+            if classification_result:
+                supplier_info = classification_result.get("supplier_info", {})
+                supplier_id = supplier_info.get("supplier_id")
+                
+                # Función para convertir objetos no serializables
+                def safe_serialize(obj):
+                    if isinstance(obj, bool):
+                        return obj
+                    elif isinstance(obj, dict):
+                        return {k: safe_serialize(v) for k, v in obj.items()}
+                    elif isinstance(obj, list):
+                        return [safe_serialize(item) for item in obj]
+                    else:
+                        return str(obj) if obj is not None else None
+                
+                classification_data = {
+                    "method_results": safe_serialize(classification_result.get("method_results", {})),
+                    "decision_details": safe_serialize(classification_result.get("decision_details", {})),
+                    "consensus_analysis": safe_serialize(classification_result.get("consensus_analysis", {}))
+                }
+                
+                classification_details = json.dumps(classification_data, ensure_ascii=False, indent=2)
+            
             cur.execute("""
                 INSERT INTO documentos (
                     filename, tipo, cuit, proveedor, fecha_documento, 
-                    monto, confidence, fecha_procesado
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    monto, confidence, fecha_procesado, proveedor_id, 
+                    detalles_clasificacion
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 filename, doc_type, cuit, supplier, doc_date,
-                amount, confidence, datetime.now().isoformat()
+                amount, confidence, datetime.now().isoformat(),
+                supplier_id, classification_details
             ))
             
             conn.commit()

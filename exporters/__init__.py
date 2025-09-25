@@ -1,6 +1,9 @@
 """
 Módulo de exportadores para el agente PDF
 """
-from .data_exporter import DataExporter
+from .advanced_exporter import AdvancedDataExporter, ExportResult
 
-__all__ = ["DataExporter"]
+# Alias para compatibilidad
+DataExporter = AdvancedDataExporter
+
+__all__ = ["DataExporter", "AdvancedDataExporter", "ExportResult"]

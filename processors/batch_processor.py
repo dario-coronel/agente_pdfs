@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 class BatchProcessor:
     """Procesador por lotes que maneja múltiples documentos"""
     
-    def __init__(self, max_workers: int = 4):
-        self.document_processor = DocumentProcessor()
+    def __init__(self, max_workers: int = 4, enable_ml: bool = True, enable_layout: bool = True):
+        self.document_processor = DocumentProcessor(enable_ml=enable_ml, enable_layout=enable_layout)
         self.max_workers = max_workers
     
     def process_directory(self, input_dir: str = None) -> Dict:

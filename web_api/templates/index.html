@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 Agente Clasificador PDF - Sistema Web</title>
+    
+    <!-- Bootstrap 5.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Estilos personalizados -->
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-robot me-2"></i>
+                <strong>Agente PDF</strong>
+                <span class="text-light opacity-75 ms-2">v3.0</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#dashboard" data-tab="dashboard">
+                            <i class="bi bi-speedometer2 me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#documents" data-tab="documents">
+                            <i class="bi bi-file-earmark-pdf me-1"></i>Documentos
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#search" data-tab="search">
+                            <i class="bi bi-search me-1"></i>Búsqueda
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#process" data-tab="process">
+                            <i class="bi bi-cpu me-1"></i>Procesar
+                        </a>
+                    </li>
+                </ul>
+                <div class="navbar-nav">
+                    <span class="navbar-text" id="status-indicator">
+                        <i class="bi bi-circle-fill text-success me-1"></i>
+                        Sistema Activo
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container-fluid mt-3">
+        <div class="row">
+            <!-- Sidebar con estadísticas rápidas -->
+            <div class="col-lg-3 col-md-4 mb-4">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-graph-up me-1"></i>Estadísticas Rápidas
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="stat-item mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-muted">Total Documentos</span>
+                                <span class="badge bg-primary" id="total-docs">-</span>
+                            </div>
+                        </div>
+                        <div class="stat-item mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-muted">Confianza Promedio</span>
+                                <span class="badge bg-success" id="avg-confidence">-</span>
+                            </div>
+                        </div>
+                        <div class="stat-item mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-muted">Hoy Procesados</span>
+                                <span class="badge bg-warning text-dark" id="recent-docs">-</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Distribución por tipos -->
+                        <h6 class="mt-4 mb-2">Tipos de Documentos</h6>
+                        <div id="types-distribution" class="small">
+                            <div class="text-center text-muted">
+                                <div class="spinner-border spinner-border-sm" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="col-lg-9 col-md-8">
+                
+                <!-- Dashboard Tab -->
+                <div id="tab-dashboard" class="tab-content active">
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-bar-chart me-2"></i>Panel de Control
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <canvas id="typeChart" height="300"></canvas>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <h6>Acciones Rápidas</h6>
+                                            <div class="d-grid gap-2">
+                                                <button class="btn btn-outline-primary" onclick="refreshStats()">
+                                                    <i class="bi bi-arrow-clockwise me-1"></i>Actualizar Stats
+                                                </button>
+                                                <button class="btn btn-outline-success" onclick="exportData('csv')">
+                                                    <i class="bi bi-download me-1"></i>Exportar CSV
+                                                </button>
+                                                <button class="btn btn-outline-info" onclick="showTab('search')">
+                                                    <i class="bi bi-search me-1"></i>Búsqueda Avanzada
+                                                </button>
+                                                <button class="btn btn-outline-warning" onclick="showTab('process')">
+                                                    <i class="bi bi-cpu me-1"></i>Procesar Nuevos
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documents Tab -->
+                <div id="tab-documents" class="tab-content">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-file-earmark-text me-2"></i>Documentos Procesados
+                            </h5>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-primary" onclick="loadDocuments(0)">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-success dropdown-toggle" data-bs-toggle="dropdown">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="#" onclick="exportData('csv')">CSV</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="exportData('json')">JSON</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="exportData('xml')">XML</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <!-- Controles de paginación -->
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="input-group">
+                                        <span class="input-group-text">Mostrar</span>
+                                        <select class="form-select" id="page-size" onchange="changePageSize()">
+                                            <option value="25">25</option>
+                                            <option value="50" selected>50</option>
+                                            <option value="100">100</option>
+                                        </select>
+                                        <span class="input-group-text">por página</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="input-group">
+                                        <span class="input-group-text">Ordenar por</span>
+                                        <select class="form-select" id="sort-field" onchange="changeSorting()">
+                                            <option value="fecha_procesado">Fecha Procesado</option>
+                                            <option value="filename">Nombre Archivo</option>
+                                            <option value="tipo">Tipo</option>
+                                            <option value="confidence">Confianza</option>
+                                        </select>
+                                        <button class="btn btn-outline-secondary" id="sort-order" onclick="toggleSortOrder()">
+                                            <i class="bi bi-sort-down"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tabla de documentos -->
+                            <div class="table-responsive">
+                                <table class="table table-hover table-striped">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Archivo</th>
+                                            <th>Tipo</th>
+                                            <th>CUIT</th>
+                                            <th>Proveedor</th>
+                                            <th>Fecha Doc.</th>
+                                            <th>Monto</th>
+                                            <th>Confianza</th>
+                                            <th>Procesado</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="documents-table">
+                                        <tr>
+                                            <td colspan="9" class="text-center">
+                                                <div class="spinner-border" role="status">
+                                                    <span class="visually-hidden">Cargando documentos...</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Navegación de páginas -->
+                            <nav id="pagination-nav">
+                                <ul class="pagination justify-content-center" id="pagination">
+                                </ul>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Search Tab -->
+                <div id="tab-search" class="tab-content">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-funnel me-2"></i>Búsqueda Avanzada
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="search-form" onsubmit="performSearch(event)">
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label for="search-cuit" class="form-label">CUIT</label>
+                                        <input type="text" class="form-control" id="search-cuit" 
+                                               placeholder="Ej: 30-12345678-9">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="search-supplier" class="form-label">Proveedor</label>
+                                        <input type="text" class="form-control" id="search-supplier" 
+                                               placeholder="Nombre del proveedor">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="search-type" class="form-label">Tipo de Documento</label>
+                                        <select class="form-select" id="search-type">
+                                            <option value="">Todos los tipos</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-3 mb-3">
+                                        <label for="search-date-from" class="form-label">Fecha Desde</label>
+                                        <input type="date" class="form-control" id="search-date-from">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label for="search-date-to" class="form-label">Fecha Hasta</label>
+                                        <input type="date" class="form-control" id="search-date-to">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label for="search-confidence" class="form-label">Confianza Mínima</label>
+                                        <input type="number" class="form-control" id="search-confidence" 
+                                               min="0" max="1" step="0.1" placeholder="0.7">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">&nbsp;</label>
+                                        <div class="d-grid">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="bi bi-search me-1"></i>Buscar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+
+                            <hr>
+
+                            <!-- Resultados de búsqueda -->
+                            <div id="search-results">
+                                <div class="text-center text-muted">
+                                    <i class="bi bi-search display-1 opacity-25"></i>
+                                    <p>Configura los filtros y presiona "Buscar" para ver resultados</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Process Tab -->
+                <div id="tab-process" class="tab-content">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-gear me-2"></i>Procesar Nuevos Documentos
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                <strong>Instrucciones:</strong> Coloca los archivos PDF en la carpeta 
+                                <code>input_pdfs</code> y usa los controles a continuación para procesarlos.
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <h6>Configuración de Procesamiento</h6>
+                                    <form id="process-form">
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="enable-ml" checked>
+                                            <label class="form-check-label" for="enable-ml">
+                                                Habilitar clasificación con Machine Learning
+                                            </label>
+                                        </div>
+                                        <div class="form-check form-switch mb-3">
+                                            <input class="form-check-input" type="checkbox" id="enable-layout" checked>
+                                            <label class="form-check-label" for="enable-layout">
+                                                Habilitar análisis de layout de documentos
+                                            </label>
+                                        </div>
+                                        
+                                        <button type="button" class="btn btn-success btn-lg" onclick="startProcessing()">
+                                            <i class="bi bi-play-fill me-2"></i>Iniciar Procesamiento
+                                        </button>
+                                    </form>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6>Estado del Sistema</h6>
+                                    <div id="process-status" class="alert alert-secondary">
+                                        <i class="bi bi-pause-circle me-2"></i>Sistema en espera
+                                    </div>
+                                    
+                                    <div id="process-progress" class="d-none">
+                                        <div class="progress mb-2">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                 role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                        <small class="text-muted">Procesando documentos...</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para detalles de documentos -->
+    <div class="modal fade" id="documentModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-file-earmark-text me-2"></i>Detalles del Documento
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="document-details">
+                    <!-- Content loaded dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5.3 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JavaScript -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

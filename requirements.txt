@@ -1,2 +1,15 @@
 pymupdf
+scikit-learn>=1.3.0
+numpy>=1.21.0
 # sqlite3 viene incluido con Python, no necesita instalación separada
+
+# Dependencias para interfaz web
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+pydantic>=2.4.0
+python-multipart>=0.0.6
+jinja2>=3.1.2
+
+# Dependencias opcionales para exportación
+pandas>=1.5.0
+openpyxl>=3.0.10
