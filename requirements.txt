@@ -1,0 +1,2 @@
+pymupdf
+sqlite3  # (viene con Python, no hace falta instalar)
