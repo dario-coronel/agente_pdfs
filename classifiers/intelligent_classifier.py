@@ -1,5 +1,14 @@
 """
-Clasificador inteligente que combina múltiples métodos con pesos ajustables
+Clasificador inteligente que         # Pesos para cada método de clasificación (suman 1.0)
+        self.classification_weights = {
+            "keyword": 0.18,      # Clasificación por palabras clave
+            "regex": 0.20,        # Patrones regex específicos
+            "ml": 0.12,           # Machine Learning (si está disponible)
+            "layout": 0.10,       # Análisis de estructura visual
+            "agro": 0.20,         # Clasificación agropecuaria especializada
+            "commercial": 0.15,   # Clasificación comercial especializada
+            "supplier": 0.05      # Boost por proveedor específico
+        }últiples métodos con pesos ajustables
 """
 import logging
 from typing import Dict, Tuple, List, Optional
@@ -8,6 +17,8 @@ from .regex_classifier import RegexClassifier
 from .ml_classifier import MLClassifier
 from .layout_classifier import LayoutClassifier
 from .supplier_detector import SupplierDetector
+from .agro_classifier import AgroDocumentClassifier
+from .commercial_classifier import CommercialDocumentClassifier
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +29,7 @@ class IntelligentClassifier:
     con pesos ajustables y lógica de decisión avanzada
     """
     
-    def __init__(self, enable_ml: bool = True, enable_layout: bool = True):
+    def __init__(self, enable_ml: bool = True, enable_layout: bool = True, enable_agro: bool = True, enable_commercial: bool = True):
         # Inicializar clasificadores
         self.keyword_classifier = DocumentClassifier()
         self.regex_classifier = RegexClassifier()
@@ -27,18 +38,23 @@ class IntelligentClassifier:
         # Clasificadores opcionales (más costosos computacionalmente)
         self.ml_classifier = MLClassifier() if enable_ml else None
         self.layout_classifier = LayoutClassifier() if enable_layout else None
+        self.agro_classifier = AgroDocumentClassifier() if enable_agro else None
+        self.commercial_classifier = CommercialDocumentClassifier() if enable_commercial else None
         
         # Pesos para cada método de clasificación (suman 1.0)
+        # Los clasificadores especializados tienen más peso
         self.classification_weights = {
-            "keyword": 0.25,    # Clasificación por palabras clave
-            "regex": 0.30,      # Patrones regex específicos
-            "ml": 0.20,         # Machine Learning (si está disponible)
-            "layout": 0.15,     # Análisis de estructura visual
-            "supplier": 0.10    # Boost por proveedor específico
+            "keyword": 0.15,      # Clasificación por palabras clave
+            "regex": 0.15,        # Patrones regex específicos  
+            "ml": 0.10,           # Machine Learning (si está disponible)
+            "layout": 0.08,       # Análisis de estructura visual
+            "agro": 0.25,         # Clasificación agropecuaria especializada (MAYOR PESO)
+            "commercial": 0.22,   # Clasificación comercial especializada (MAYOR PESO)
+            "supplier": 0.05      # Boost por proveedor específico
         }
         
         # Configuración de confianza mínima
-        self.min_confidence_threshold = 0.4
+        self.min_confidence_threshold = 0.15  # Reducido para permitir clasificaciones con un solo método fuerte
         self.high_confidence_threshold = 0.8
         
         # Configuración de consenso (mínimo de métodos que deben coincidir)
@@ -90,6 +106,42 @@ class IntelligentClassifier:
                 "confidence": supplier_conf,
                 "data": self.supplier_detector.get_supplier_info(supplier_id) if supplier_id else None
             }
+            
+            # 3.5. Clasificación agropecuaria especializada (si está disponible)
+            if self.agro_classifier:
+                try:
+                    agro_type, agro_conf, agro_details = self.agro_classifier.classify_agro_document(text)
+                    results["method_results"]["agro"] = {
+                        "type": agro_type,
+                        "confidence": agro_conf,
+                        "details": agro_details,
+                        "is_agro_document": agro_conf > 0.3
+                    }
+                except Exception as e:
+                    logger.warning(f"Error en clasificación agropecuaria: {e}")
+                    results["method_results"]["agro"] = {
+                        "type": "desconocido",
+                        "confidence": 0.0,
+                        "error": str(e)
+                    }
+            
+            # 3.6. Clasificación comercial especializada (si está disponible)
+            if self.commercial_classifier:
+                try:
+                    commercial_type, commercial_conf, commercial_details = self.commercial_classifier.classify_commercial_document(text)
+                    results["method_results"]["commercial"] = {
+                        "type": commercial_type,
+                        "confidence": commercial_conf,
+                        "details": commercial_details,
+                        "is_commercial_document": commercial_conf > 0.3
+                    }
+                except Exception as e:
+                    logger.warning(f"Error en clasificación comercial: {e}")
+                    results["method_results"]["commercial"] = {
+                        "type": "desconocido",
+                        "confidence": 0.0,
+                        "error": str(e)
+                    }
             
             # 4. Machine Learning (si está disponible)
             if self.ml_classifier:
@@ -211,7 +263,61 @@ class IntelligentClassifier:
                                       consensus_analysis: Dict) -> Tuple[str, float, Dict]:
         """Calcula la clasificación final usando pesos y lógica de decisión"""
         
-        # Calcular puntuaciones ponderadas
+        # **LÓGICA ESPECIAL**: Prioridad para clasificador agropecuario con alta confianza
+        agro_result = method_results.get("agro")
+        if (agro_result and 
+            agro_result.get("confidence", 0) >= 0.9 and 
+            agro_result.get("is_agro_document", False)):
+            
+            # Boost significativo para documentos agropecuarios con muy alta confianza
+            agro_type = agro_result["type"]
+            agro_confidence = agro_result["confidence"]
+            boosted_confidence = min(agro_confidence * self.classification_weights["agro"] + 0.3, 1.0)
+            
+            decision_details = {
+                "method_contributions": {"agro": {
+                    "type": agro_type,
+                    "confidence": agro_confidence,
+                    "weight": self.classification_weights["agro"],
+                    "contribution": boosted_confidence
+                }},
+                "supplier_boost": 0.0,
+                "consensus_factor": 0.0,
+                "agro_priority_boost": 0.3,
+                "final_reasoning": f"Documento agropecuario detectado con alta confianza ({agro_confidence:.3f}) - prioridad automática"
+            }
+            
+            logger.info(f"🌾 Prioridad agropecuaria aplicada: {agro_type} (confianza: {boosted_confidence:.3f})")
+            return agro_type, boosted_confidence, decision_details
+        
+        # **LÓGICA ESPECIAL**: Prioridad para clasificador comercial con alta confianza
+        commercial_result = method_results.get("commercial")
+        if (commercial_result and 
+            commercial_result.get("confidence", 0) >= 0.9 and 
+            commercial_result.get("is_commercial_document", False)):
+            
+            # Boost significativo para documentos comerciales con muy alta confianza
+            commercial_type = commercial_result["type"]
+            commercial_confidence = commercial_result["confidence"]
+            boosted_confidence = min(commercial_confidence * self.classification_weights["commercial"] + 0.25, 1.0)
+            
+            decision_details = {
+                "method_contributions": {"commercial": {
+                    "type": commercial_type,
+                    "confidence": commercial_confidence,
+                    "weight": self.classification_weights["commercial"],
+                    "contribution": boosted_confidence
+                }},
+                "supplier_boost": 0.0,
+                "consensus_factor": 0.0,
+                "commercial_priority_boost": 0.25,
+                "final_reasoning": f"Documento comercial detectado con alta confianza ({commercial_confidence:.3f}) - prioridad automática"
+            }
+            
+            logger.info(f"💼 Prioridad comercial aplicada: {commercial_type} (confianza: {boosted_confidence:.3f})")
+            return commercial_type, boosted_confidence, decision_details
+        
+        # Calcular puntuaciones ponderadas (lógica normal)
         weighted_scores = {}
         decision_details = {
             "method_contributions": {},
@@ -269,6 +375,9 @@ class IntelligentClassifier:
         # 4. Determinar clasificación final
         if not weighted_scores:
             return "desconocido", 0.0, decision_details
+        
+        # Agregar weighted_scores al debug
+        decision_details["weighted_scores"] = weighted_scores.copy()
         
         final_type = max(weighted_scores, key=weighted_scores.get)
         raw_confidence = weighted_scores[final_type]
@@ -424,6 +533,14 @@ class IntelligentClassifier:
         if self.layout_classifier:
             metrics["method_status"]["layout"] = {"available": True, "trained": True}
             metrics["available_methods"].append("layout")
+        
+        if self.agro_classifier:
+            metrics["method_status"]["agro"] = {"available": True, "specialized": True}
+            metrics["available_methods"].append("agro")
+        
+        if self.commercial_classifier:
+            metrics["method_status"]["commercial"] = {"available": True, "specialized": True}
+            metrics["available_methods"].append("commercial")
         
         metrics["available_methods"].extend(["keyword", "regex", "supplier"])
         

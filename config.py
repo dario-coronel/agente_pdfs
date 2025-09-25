@@ -11,14 +11,21 @@ DB_PATH = os.path.join(DB_DIR, "documentos.db")
 
 # 🔍 Configuración de clasificación
 DOCUMENT_TYPES = {
-    "facturas": ["factura", "invoice", "fact", "fac"],
-    "remitos": ["remito", "delivery note", "rem"],
-    "notas_credito": ["nota de crédito", "nota de credito", "credit note", "nc"],
-    "notas_debito": ["nota de débito", "nota de debito", "debit note", "nd"],
-    "cartas_porte": ["carta de porte", "waybill", "cp"],
-    "recibos": ["recibo", "receipt", "rec"],
+    "facturas": ["factura", "invoice", "fact", "fac", "bill"],
+    "remitos": ["remito", "delivery note", "rem", "guía", "guia"],
+    "notas_credito": ["nota de crédito", "nota de credito", "credit note"],  # Removido "nc" genérico
+    "notas_debito": ["nota de débito", "nota de debito", "debit note"],     # Removido "nd" genérico
+    "cartas_porte": ["carta de porte", "waybill", "cp", "porte", "transporte", "flete"],
+    "liquidaciones_granos": ["liquidación primaria", "liquidación de granos", "liquidacion", "granos", "cereales", "soja", "trigo", "maíz", "maiz", "girasol", "sorgo", "settlement", "grain settlement"],
+    "cot": ["cot", "certificado de transferencia", "certificado", "transferencia", "certificate of transfer", "transferencia de granos", "transfer certificate"],
+    "ctg": ["ctg", "carta de crédito", "carta de credito", "certificado de depósito", "certificado de deposito", "warrant", "storage certificate"],
+    "pesajes": ["pesaje", "peso", "báscula", "bascula", "balanza", "weigh", "weight", "scale", "kg", "toneladas"],
+    "contratos_granos": ["contrato", "contract", "convenio", "acuerdo", "compraventa", "granos", "cereales"],
+    "transferencias": ["transferencia bancaria", "transferencia", "transfer", "wire transfer", "giro", "envío de dinero", "remesa"],
+    "ordenes_pago": ["orden de pago", "payment order", "op", "orden pago", "autorización de pago", "payment authorization"],
+    "recibos": ["recibo", "receipt", "rec", "comprobante"],
     "ordenes_compra": ["orden de compra", "purchase order", "oc"],
-    "contratos": ["contrato", "contract", "convenio"]
+    "contratos": ["contrato", "contract", "convenio", "acuerdo"]
 }
 
 # 📋 Patrones de extracción

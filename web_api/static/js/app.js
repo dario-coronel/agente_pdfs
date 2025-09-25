@@ -480,46 +480,156 @@ function toggleSortOrder() {
 
 async function showDocumentDetails(documentId) {
     try {
-        const response = await fetch(`${API_ENDPOINTS.documents}/${documentId}`);
-        const document = await response.json();
+        console.log(`🔍 [DEBUG] Iniciando carga de documento ID: ${documentId}`);
+        console.log(`🔍 [DEBUG] API Base: ${API_BASE}`);
+        console.log(`🔍 [DEBUG] Endpoint completo: ${API_ENDPOINTS.documents}/${documentId}`);
         
+        // Mostrar loading en el modal
         const modalBody = document.getElementById('document-details');
+        console.log(`🔍 [DEBUG] Modal body element:`, modalBody);
+        
+        if (modalBody) {
+            modalBody.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="mt-2">Cargando detalles del documento ID: ${documentId}...</p>
+                    <small class="text-muted">Endpoint: ${API_ENDPOINTS.documents}/${documentId}</small>
+                </div>
+            `;
+        }
+        
+        // Mostrar modal inmediatamente con loading
+        const modalElement = document.getElementById('documentModal');
+        console.log(`🔍 [DEBUG] Modal element:`, modalElement);
+        
+        if (modalElement) {
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+        }
+        
+        const url = `${API_ENDPOINTS.documents}/${documentId}`;
+        console.log(`🔍 [DEBUG] Haciendo fetch a: ${url}`);
+        
+        const response = await fetch(url);
+        console.log(`🔍 [DEBUG] Response status: ${response.status}`);
+        console.log(`🔍 [DEBUG] Response ok: ${response.ok}`);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`🔍 [DEBUG] Error response:`, errorText);
+            throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+        }
+        
+        const docData = await response.json();
+        console.log('📄 [DEBUG] Documento recibido:', docData);
+        console.log('📄 [DEBUG] Tipo de detalles_clasificacion:', typeof docData.detalles_clasificacion);
+        console.log('📄 [DEBUG] Detalles_clasificacion:', docData.detalles_clasificacion);
+        
+        // Actualizar contenido del modal
         if (modalBody) {
             modalBody.innerHTML = `
                 <div class="row">
                     <div class="col-md-6">
                         <h6>Información General</h6>
                         <table class="table table-sm">
-                            <tr><td class="fw-semibold">ID:</td><td>${document.id}</td></tr>
-                            <tr><td class="fw-semibold">Archivo:</td><td>${document.filename}</td></tr>
-                            <tr><td class="fw-semibold">Tipo:</td><td><span class="badge badge-${document.tipo || 'desconocido'}">${document.tipo || 'Desconocido'}</span></td></tr>
-                            <tr><td class="fw-semibold">CUIT:</td><td>${document.cuit || 'N/A'}</td></tr>
-                            <tr><td class="fw-semibold">Proveedor:</td><td>${document.proveedor || 'N/A'}</td></tr>
-                            <tr><td class="fw-semibold">Fecha Doc.:</td><td>${document.fecha_documento || 'N/A'}</td></tr>
-                            <tr><td class="fw-semibold">Monto:</td><td>${document.monto || 'N/A'}</td></tr>
-                            <tr><td class="fw-semibold">Confianza:</td><td>${document.confidence ? (document.confidence * 100).toFixed(2) + '%' : 'N/A'}</td></tr>
-                            <tr><td class="fw-semibold">Procesado:</td><td>${formatDate(document.fecha_procesado)}</td></tr>
+                            <tr><td class="fw-semibold">ID:</td><td>${docData.id}</td></tr>
+                            <tr><td class="fw-semibold">Archivo:</td><td>${escapeHtml(docData.filename)}</td></tr>
+                            <tr><td class="fw-semibold">Tipo:</td><td><span class="badge badge-${docData.tipo || 'desconocido'}">${escapeHtml(docData.tipo) || 'Desconocido'}</span></td></tr>
+                            <tr><td class="fw-semibold">CUIT:</td><td>${escapeHtml(docData.cuit) || 'N/A'}</td></tr>
+                            <tr><td class="fw-semibold">Proveedor:</td><td>${escapeHtml(docData.proveedor) || 'N/A'}</td></tr>
+                            <tr><td class="fw-semibold">Fecha Doc.:</td><td>${escapeHtml(docData.fecha_documento) || 'N/A'}</td></tr>
+                            <tr><td class="fw-semibold">Monto:</td><td>${escapeHtml(docData.monto) || 'N/A'}</td></tr>
+                            <tr><td class="fw-semibold">Confianza:</td><td>${docData.confidence ? (docData.confidence * 100).toFixed(2) + '%' : 'N/A'}</td></tr>
+                            <tr><td class="fw-semibold">Procesado:</td><td>${formatDate(docData.fecha_procesado)}</td></tr>
                         </table>
                     </div>
                     <div class="col-md-6">
                         <h6>Detalles de Clasificación</h6>
-                        <div class="bg-light p-3 rounded">
-                            ${document.detalles_clasificacion ? 
-                                `<pre class="small mb-0">${JSON.stringify(document.detalles_clasificacion, null, 2)}</pre>` :
-                                '<p class="text-muted mb-0">No hay detalles de clasificación disponibles</p>'
-                            }
+                        <div class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;">
+                            ${formatClassificationDetails(docData.detalles_clasificacion)}
                         </div>
                     </div>
                 </div>
             `;
         }
         
-        const modal = new bootstrap.Modal(document.getElementById('documentModal'));
-        modal.show();
-        
     } catch (error) {
         console.error('❌ Error cargando detalles del documento:', error);
-        showToast('Error cargando detalles del documento', 'danger');
+        
+        // Mostrar error en el modal
+        const modalBody = document.getElementById('document-details');
+        if (modalBody) {
+            modalBody.innerHTML = `
+                <div class="alert alert-danger">
+                    <h6><i class="bi bi-exclamation-triangle"></i> Error cargando detalles</h6>
+                    <p class="mb-0">${error.message}</p>
+                    <small class="text-muted">ID del documento: ${documentId}</small>
+                </div>
+            `;
+        }
+        
+        showToast(`Error cargando detalles del documento: ${error.message}`, 'danger');
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatClassificationDetails(details) {
+    if (!details || Object.keys(details).length === 0) {
+        return '<p class="text-muted mb-0">No hay detalles de clasificación disponibles</p>';
+    }
+    
+    try {
+        // Formatear de manera más legible
+        const formatted = {
+            'Clasificación Final': details.final_classification || 'N/A',
+            'Confianza Final': details.final_confidence ? `${(details.final_confidence * 100).toFixed(2)}%` : 'N/A',
+            'Métodos Utilizados': details.method_results ? Object.keys(details.method_results).join(', ') : 'N/A'
+        };
+        
+        let html = '<div class="classification-summary mb-3">';
+        Object.entries(formatted).forEach(([key, value]) => {
+            html += `<div><strong>${key}:</strong> ${value}</div>`;
+        });
+        html += '</div>';
+        
+        if (details.method_results) {
+            html += '<div class="method-details"><strong>Resultados por método:</strong>';
+            html += '<table class="table table-sm mt-2">';
+            html += '<thead><tr><th>Método</th><th>Tipo</th><th>Confianza</th></tr></thead><tbody>';
+            
+            Object.entries(details.method_results).forEach(([method, result]) => {
+                const confidence = result.confidence ? `${(result.confidence * 100).toFixed(1)}%` : 'N/A';
+                html += `<tr><td>${method}</td><td>${result.type || 'N/A'}</td><td>${confidence}</td></tr>`;
+            });
+            
+            html += '</tbody></table></div>';
+        }
+        
+        // Mostrar JSON completo en un collapsible
+        html += `
+            <div class="mt-3">
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#fullDetails">
+                    Ver JSON completo
+                </button>
+                <div class="collapse mt-2" id="fullDetails">
+                    <pre class="small bg-white p-2 border rounded">${JSON.stringify(details, null, 2)}</pre>
+                </div>
+            </div>
+        `;
+        
+        return html;
+        
+    } catch (error) {
+        console.error('Error formateando detalles:', error);
+        return `<pre class="small mb-0">${JSON.stringify(details, null, 2)}</pre>`;
     }
 }
 

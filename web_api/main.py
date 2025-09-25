@@ -100,10 +100,33 @@ def get_db_connection():
     return sqlite3.connect(DB_PATH)
 
 
+def clean_numpy_values(obj):
+    """Limpia valores numpy de un objeto para serialización JSON"""
+    import numpy as np
+    
+    if isinstance(obj, dict):
+        return {key: clean_numpy_values(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_numpy_values(item) for item in obj]
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, (np.integer, np.floating)):
+        return obj.item()
+    elif isinstance(obj, np.str_):
+        return str(obj)
+    elif isinstance(obj, (np.bool_, np.True_, np.False_)):
+        return bool(obj)
+    else:
+        return obj
+
+
 def parse_classification_details(details_str: str) -> Dict[str, Any]:
     """Parsea los detalles de clasificación desde JSON"""
     try:
-        return json.loads(details_str) if details_str else {}
+        if not details_str:
+            return {}
+        raw_data = json.loads(details_str)
+        return clean_numpy_values(raw_data)
     except (json.JSONDecodeError, TypeError):
         return {}
 
@@ -160,7 +183,10 @@ async def home():
     try:
         templates_file = templates_path / "index.html"
         if templates_file.exists():
-            return templates_file.read_text(encoding='utf-8')
+            content = templates_file.read_text(encoding='utf-8')
+            # Reemplazar timestamp para evitar caché
+            content = content.replace("{{ timestamp }}", str(int(datetime.now().timestamp())))
+            return content
         else:
             return """
             <html>
@@ -174,6 +200,156 @@ async def home():
             """
     except Exception as e:
         return f"<h1>Error cargando interfaz: {str(e)}</h1>"
+
+@app.get("/test", response_class=HTMLResponse)
+async def test_page():
+    """Página de test para modal"""
+    test_html = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Modal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>🔍 Test de Modal de Documentos</h1>
+        <p><a href="/" class="btn btn-secondary">&larr; Volver a la app principal</a></p>
+        
+        <div class="row">
+            <div class="col-md-12">
+                <h3>Documentos de Prueba</h3>
+                <div id="debug-info" class="alert alert-info">
+                    <h6>Debug Info:</h6>
+                    <div id="debug-content">Haciendo peticiones...</div>
+                </div>
+                
+                <table class="table">
+                    <thead>
+                        <tr><th>ID</th><th>Nombre</th><th>Acciones</th></tr>
+                    </thead>
+                    <tbody id="test-docs">
+                        <tr><td colspan="3">Cargando documentos...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="testModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Detalles del Documento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="modal-content">
+                    <!-- Content loaded dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        async function loadTestDocs() {
+            try {
+                const response = await fetch('/api/documents');
+                const docs = await response.json();
+                
+                document.getElementById('debug-content').innerHTML = 
+                    `Status: ${response.status}, Docs: ${docs.length}`;
+                
+                const tbody = document.getElementById('test-docs');
+                tbody.innerHTML = docs.slice(0, 5).map(doc => 
+                    `<tr>
+                        <td>${doc.id}</td>
+                        <td>${doc.filename}</td>
+                        <td><button class="btn btn-sm btn-primary" onclick="testModal(${doc.id})">Ver Detalles</button></td>
+                    </tr>`
+                ).join('');
+                
+            } catch (error) {
+                document.getElementById('debug-content').innerHTML = `Error: ${error.message}`;
+            }
+        }
+        
+        async function testModal(documentId) {
+            console.log('🔍 Testing modal for document ID:', documentId);
+            
+            const modalContent = document.getElementById('modal-content');
+            modalContent.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="mt-2">Cargando documento ID: ${documentId}...</p>
+                </div>
+            `;
+            
+            const modal = new bootstrap.Modal(document.getElementById('testModal'));
+            modal.show();
+            
+            try {
+                const response = await fetch(`/api/documents/${documentId}`);
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const document = await response.json();
+                console.log('Document received:', document);
+                
+                modalContent.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Información General</h6>
+                            <table class="table table-sm">
+                                <tr><td><strong>ID:</strong></td><td>${document.id}</td></tr>
+                                <tr><td><strong>Archivo:</strong></td><td>${document.filename}</td></tr>
+                                <tr><td><strong>Tipo:</strong></td><td><span class="badge bg-primary">${document.tipo}</span></td></tr>
+                                <tr><td><strong>CUIT:</strong></td><td>${document.cuit || 'N/A'}</td></tr>
+                                <tr><td><strong>Proveedor:</strong></td><td>${document.proveedor || 'N/A'}</td></tr>
+                                <tr><td><strong>Confianza:</strong></td><td>${document.confidence ? (document.confidence * 100).toFixed(2) + '%' : 'N/A'}</td></tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Detalles de Clasificación</h6>
+                            <div class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto;">
+                                ${document.detalles_clasificacion ? 
+                                    `<pre class="small">${JSON.stringify(document.detalles_clasificacion, null, 2)}</pre>` :
+                                    '<p class="text-muted">No disponible</p>'
+                                }
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                modalContent.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h6>❌ Error cargando documento</h6>
+                        <p><strong>Mensaje:</strong> ${error.message}</p>
+                        <p><strong>ID:</strong> ${documentId}</p>
+                        <small class="text-muted">Revisa la consola del navegador para más detalles</small>
+                    </div>
+                `;
+            }
+        }
+        
+        // Cargar documentos al iniciar
+        document.addEventListener('DOMContentLoaded', loadTestDocs);
+    </script>
+</body>
+</html>
+    """
+    return test_html
 
 
 @app.get("/api/health")
