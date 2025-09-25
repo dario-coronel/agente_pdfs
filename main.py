@@ -1,124 +1,127 @@
+"""
+Agente Clasificador de PDFs - Punto de entrada principal
+"""
 import os
-import re
-import fitz  # PyMuPDF
-import sqlite3
-from datetime import datetime
-
-# 📂 Rutas
-INPUT_DIR = "input_pdfs"
-OUTPUT_DIR = "output_pdfs"
-DB_PATH = "db/documentos.db"
+import sys
+import logging
+from pathlib import Path
+from processors import BatchProcessor
+from config import INPUT_DIR, LOGGING_CONFIG
 
 
-# ------------------- DB -------------------
-def init_db():
-    """Inicializa la base de datos SQLite."""
-    os.makedirs("db", exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS documentos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            filename TEXT,
-            tipo TEXT,
-            cuit TEXT,
-            proveedor TEXT,
-            fecha_procesado TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
+def setup_logging():
+    """Configura el sistema de logging"""
+    # Crear directorio de logs si no existe
+    log_dir = Path(LOGGING_CONFIG["log_file"]).parent
+    log_dir.mkdir(exist_ok=True)
+    
+    logging.basicConfig(
+        level=getattr(logging, LOGGING_CONFIG["level"]),
+        format=LOGGING_CONFIG["format"],
+        handlers=[
+            logging.FileHandler(LOGGING_CONFIG["log_file"]),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
 
 
-# ------------------- PDF -------------------
-def extract_text_from_pdf(path):
-    """Extrae texto de un PDF usando PyMuPDF."""
-    text = ""
-    with fitz.open(path) as doc:
-        for page in doc:
-            text += page.get_text()
-    return text
+def print_banner():
+    """Imprime el banner de inicio del agente"""
+    banner = """
+╔═══════════════════════════════════════════════════════════════╗
+║                    🤖 AGENTE CLASIFICADOR PDF                 ║
+║                     Versión 2.0 - Refactorizado              ║
+╚═══════════════════════════════════════════════════════════════╝
+    """
+    print(banner)
 
 
-def classify_document(text):
-    """Clasifica el documento según palabras clave."""
-    t = text.lower()
-    if "factura" in t:
-        return "facturas"
-    elif "remito" in t:
-        return "remitos"
-    elif "nota de crédito" in t or "nota de credito" in t:
-        return "notas_credito"
-    elif "nota de débito" in t or "nota de debito" in t:
-        return "notas_debito"
-    elif "carta de porte" in t:
-        return "cartas_porte"
-    else:
-        return "desconocido"
-
-
-def extract_cuit(text):
-    """Busca un CUIT en el texto (formato 00-00000000-0)."""
-    match = re.search(r"\d{2}-\d{8}-\d", text)
-    return match.group(0) if match else None
-
-
-# ------------------- DB Save -------------------
-def save_to_db(filename, tipo, cuit, proveedor=""):
-    """Guarda metadatos en la base de datos."""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO documentos (filename, tipo, cuit, proveedor, fecha_procesado)
-        VALUES (?, ?, ?, ?, ?)
-    """, (filename, tipo, cuit, proveedor, datetime.now().isoformat()))
-    conn.commit()
-    conn.close()
-
-
-# ------------------- Procesamiento -------------------
-def process_pdf(file_path):
-    """Procesa un archivo PDF completo."""
-    try:
-        text = extract_text_from_pdf(file_path)
-        tipo = classify_document(text)
-        cuit = extract_cuit(text)
-
-        # Crear carpeta destino
-        dest_dir = os.path.join(OUTPUT_DIR, tipo)
-        os.makedirs(dest_dir, exist_ok=True)
-
-        # Mover archivo
-        filename = os.path.basename(file_path)
-        dest_path = os.path.join(dest_dir, filename)
-        os.rename(file_path, dest_path)
-
-        # Guardar metadatos
-        save_to_db(filename, tipo, cuit)
-
-        print(f"✅ {filename} → {tipo} | CUIT: {cuit if cuit else 'N/D'}")
-
-    except Exception as e:
-        print(f"❌ Error procesando {file_path}: {e}")
-
-
-# ------------------- Main -------------------
-if __name__ == "__main__":
-    print("🚀 Iniciando agente de PDFs...")
-    init_db()
-
-    if not os.path.exists(INPUT_DIR):
-        print(f"⚠️ La carpeta {INPUT_DIR} no existe. Crea la carpeta y coloca PDFs.")
-    else:
-        files = os.listdir(INPUT_DIR)
-        if not files:
-            print(f"📂 No se encontraron archivos en {INPUT_DIR}")
+def print_results(results):
+    """Imprime los resultados del procesamiento"""
+    print("\n" + "="*60)
+    print("📊 RESULTADOS DEL PROCESAMIENTO")
+    print("="*60)
+    
+    print(f"📁 Archivos totales: {results['total_files']}")
+    print(f"✅ Procesados exitosamente: {results['processed']}")
+    print(f"❌ Errores: {results['errors']}")
+    print(f"⏭️ Omitidos: {results['skipped']}")
+    
+    if results['summary']:
+        print("\n📋 Distribución por tipo:")
+        for doc_type, count in results['summary'].items():
+            print(f"   • {doc_type}: {count} documentos")
+    
+    print("\n📄 Detalles por archivo:")
+    for result in results['results']:
+        if result['success']:
+            confidence_str = f"({result['confidence']:.2f})" if result['confidence'] else ""
+            print(f"   ✅ {result['filename']} → {result['classification']} {confidence_str}")
         else:
-            for file in files:
-                path = os.path.join(INPUT_DIR, file)
-                if file.lower().endswith(".pdf"):
-                    process_pdf(path)
-                else:
-                    print(f"⚠️ {file} no es un PDF válido")
+            print(f"   ❌ {result['filename']}: {result['error']}")
 
-    print("🏁 Proceso finalizado.")
+
+def main():
+    """Función principal del agente"""
+    try:
+        # Configurar logging
+        setup_logging()
+        logger = logging.getLogger(__name__)
+        
+        # Banner de inicio
+        print_banner()
+        
+        logger.info("🚀 Iniciando Agente Clasificador PDF v2.0")
+        
+        # Verificar directorio de entrada
+        if not os.path.exists(INPUT_DIR):
+            print(f"\n⚠️  El directorio de entrada no existe: {INPUT_DIR}")
+            print(f"📁 Creando directorio: {INPUT_DIR}")
+            os.makedirs(INPUT_DIR, exist_ok=True)
+            print(f"✅ Directorio creado. Coloca archivos PDF aquí y ejecuta nuevamente.")
+            return
+        
+        # Verificar si hay archivos PDF
+        pdf_files = [f for f in os.listdir(INPUT_DIR) if f.lower().endswith('.pdf')]
+        if not pdf_files:
+            print(f"\n📂 No se encontraron archivos PDF en: {INPUT_DIR}")
+            print("💡 Coloca archivos PDF en la carpeta 'input_pdfs' y ejecuta nuevamente.")
+            return
+        
+        print(f"\n🔍 Encontrados {len(pdf_files)} archivos PDF para procesar:")
+        for pdf_file in pdf_files:
+            print(f"   📄 {pdf_file}")
+        
+        print("\n⚡ Iniciando procesamiento...")
+        
+        # Crear procesador por lotes
+        batch_processor = BatchProcessor(max_workers=2)  # Procesar 2 archivos en paralelo
+        
+        # Procesar todos los archivos
+        results = batch_processor.process_directory(INPUT_DIR)
+        
+        # Mostrar resultados
+        print_results(results)
+        
+        # Mostrar estadísticas finales
+        stats = batch_processor.document_processor.get_processing_stats()
+        if stats:
+            print(f"\n📈 Total de documentos en base de datos: {stats['total_documents']}")
+            print(f"🎯 Confianza promedio: {stats['average_confidence']:.3f}")
+        
+        print("\n🏁 Procesamiento completado.")
+        logger.info("Procesamiento completado exitosamente")
+        
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Procesamiento interrumpido por el usuario")
+        logger.info("Procesamiento interrumpido por el usuario")
+        
+    except Exception as e:
+        error_msg = f"Error crítico en el procesamiento: {e}"
+        print(f"\n💥 {error_msg}")
+        logger.error(error_msg, exc_info=True)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
