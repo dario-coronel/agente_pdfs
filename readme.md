@@ -76,8 +76,8 @@ agente_pdfs/
 │   ├── remitos/                # Remitos y albaranes
 │   ├── notas_credito/          # Notas de crédito
 │   └── desconocido/            # Documentos sin clasificar
-├── 🗄️ db/                    # Base de datos SQLite
-│   └── documentos.db           # BD con metadatos completos
+├── 🗄️ db/                    # Base de datos PostgreSQL
+│   └── documentos.db           # (Obsoleto) BD SQLite anterior
 ├── 📝 logs/                  # Sistema de logging estructurado
 ├── config.py                 # Configuración centralizada avanzada
 ├── main.py                   # CLI principal
@@ -205,7 +205,30 @@ python main.py --export csv --output-file resultados.csv
 |------|---------|-------------|
 | **Desconocido** | `desconocido/` | Documentos sin clasificar |
 
-## ⚙️ Configuración Avanzada
+
+## 🗄️ Cambio de Base de Datos: ¡Ahora con PostgreSQL!
+
+Desde la versión 3.1, el sistema utiliza **PostgreSQL** como motor de base de datos principal, reemplazando SQLite para mayor robustez, escalabilidad y rendimiento multiusuario.
+
+### Beneficios del cambio:
+- 🔗 Conexión multiusuario y acceso concurrente
+- 🚀 Consultas y filtros más rápidos sobre grandes volúmenes de documentos
+- 🔒 Mejor integridad y seguridad de datos
+- 🛠️ Integración sencilla con herramientas externas y BI
+- 📦 Preparado para despliegue en servidores y cloud
+
+**Configuración:**
+Los parámetros de conexión se encuentran en `config.py`:
+
+```python
+PG_HOST = "localhost"
+PG_PORT = 5432
+PG_USER = "postgres"
+PG_PASSWORD = "<tu_password>"
+PG_DB = "postgres"
+```
+
+**Nota:** El archivo `db/documentos.db` (SQLite) queda solo como referencia/histórico. Todos los datos nuevos se almacenan en PostgreSQL.
 
 ### Archivo `config.py`
 
@@ -302,37 +325,42 @@ exporter.export_to_csv("resultados.csv")
 
 ### 3. Búsqueda Programática
 ```python
-import sqlite3
-from config import DB_PATH
+import psycopg2
+from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB
 
-conn = sqlite3.connect(DB_PATH)
+conn = psycopg2.connect(
+   host=PG_HOST,
+   port=PG_PORT,
+   user=PG_USER,
+   password=PG_PASSWORD,
+   dbname=PG_DB
+)
 cursor = conn.cursor()
 
 # Buscar facturas de un proveedor específico
 cursor.execute("""
-    SELECT filename, monto, fecha_documento 
-    FROM documentos 
-    WHERE tipo = 'facturas' AND proveedor LIKE '%TELECOM%'
-    ORDER BY fecha_documento DESC
+   SELECT filename, monto, fecha_documento 
+   FROM documentos 
+   WHERE tipo = 'facturas' AND proveedor LIKE '%TELECOM%'
+   ORDER BY fecha_documento DESC
 """)
-
 for doc in cursor.fetchall():
-    print(f"Factura: {doc[0]}, Monto: {doc[1]}, Fecha: {doc[2]}")
+   print(f"Factura: {doc[0]}, Monto: {doc[1]}, Fecha: {doc[2]}")
 
-# Buscar documentos agropecuarios (¡NUEVO!)
+# Buscar documentos agropecuarios
 cursor.execute("""
-    SELECT filename, tipo, confidence 
-    FROM documentos 
-    WHERE tipo IN ('liquidaciones_granos', 'cartas_porte', 'cot', 'ctg', 'pesajes')
-    ORDER BY confidence DESC
+   SELECT filename, tipo, confidence 
+   FROM documentos 
+   WHERE tipo IN ('liquidaciones_granos', 'cartas_porte', 'cot', 'ctg', 'pesajes')
+   ORDER BY confidence DESC
 """)
 
-# Buscar documentos comerciales (¡NUEVO!)
+# Buscar documentos comerciales
 cursor.execute("""
-    SELECT filename, tipo, monto 
-    FROM documentos 
-    WHERE tipo IN ('ordenes_pago', 'transferencias', 'cheques', 'recibos_pago')
-    AND monto > 10000
+   SELECT filename, tipo, monto 
+   FROM documentos 
+   WHERE tipo IN ('ordenes_pago', 'transferencias', 'cheques', 'recibos_pago')
+   AND monto::numeric > 10000
 """)
 ```
 
