@@ -2,12 +2,12 @@
 Procesador principal de documentos PDF con clasificación inteligente
 """
 import os
-import sqlite3
+import psycopg2
 import logging
 import json
 from datetime import datetime
 from typing import Optional, Dict
-from config import DB_PATH, OUTPUT_DIR, DB_SCHEMA
+from config import OUTPUT_DIR, DB_SCHEMA
 from extractors import TextExtractor, MetadataExtractor
 from classifiers import IntelligentClassifier
 from validators import PDFValidator
@@ -31,8 +31,14 @@ class DocumentProcessor:
     def _init_database(self):
         """Inicializa la base de datos SQLite"""
         try:
-            os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-            conn = sqlite3.connect(DB_PATH)
+            from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB
+            conn = psycopg2.connect(
+                host=PG_HOST,
+                port=PG_PORT,
+                user=PG_USER,
+                password=PG_PASSWORD,
+                dbname=PG_DB
+            )
             cur = conn.cursor()
             
             # Crear tabla con el esquema actualizado
@@ -160,7 +166,14 @@ class DocumentProcessor:
             classification_result: Resultado completo de la clasificación inteligente
         """
         try:
-            conn = sqlite3.connect(DB_PATH)
+            from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB
+            conn = psycopg2.connect(
+                host=PG_HOST,
+                port=PG_PORT,
+                user=PG_USER,
+                password=PG_PASSWORD,
+                dbname=PG_DB
+            )
             cur = conn.cursor()
             
             # Extraer datos específicos de los metadatos
@@ -230,7 +243,14 @@ class DocumentProcessor:
             Diccionario con estadísticas
         """
         try:
-            conn = sqlite3.connect(DB_PATH)
+            from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB
+            conn = psycopg2.connect(
+                host=PG_HOST,
+                port=PG_PORT,
+                user=PG_USER,
+                password=PG_PASSWORD,
+                dbname=PG_DB
+            )
             cur = conn.cursor()
             
             # Total de documentos

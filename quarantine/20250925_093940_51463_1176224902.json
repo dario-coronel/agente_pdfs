@@ -1,0 +1,32 @@
+{
+  "is_valid": false,
+  "errors": [
+    "Documento protegido por contraseña",
+    "Error validando contenido: document closed or encrypted"
+  ],
+  "warnings": [
+    "Error analizando páginas: document closed or encrypted"
+  ],
+  "file_info": {
+    "path": "C:\\Users\\Dario\\agente_pdfs\\input_pdfs\\51463_1176224902.pdf",
+    "name": "51463_1176224902.pdf",
+    "size": 414178,
+    "modified": "2025-09-02T16:00:56.579398",
+    "created": "2025-09-25T08:08:58.555850",
+    "sha256": "c964241c7703e576b1727b33d2ac2a1c60ca3dca6ea0d8769cacb92b3f8cf68b"
+  },
+  "pdf_metadata": {
+    "page_count": 3,
+    "is_pdf": true,
+    "needs_pass": 1,
+    "is_encrypted": true,
+    "permissions": 0
+  },
+  "security_info": {
+    "is_encrypted": true,
+    "needs_password": 1,
+    "permissions": {},
+    "password_protected": true
+  },
+  "content_analysis": {}
+}

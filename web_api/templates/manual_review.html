@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Revisión Manual de Documentos Desconocidos</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .doc-list { margin: 2em 0; }
+        .doc-item { border-bottom: 1px solid #ccc; padding: 1em 0; }
+        .doc-actions { margin-top: 0.5em; }
+        .doc-actions select, .doc-actions button { margin-right: 1em; }
+    </style>
+</head>
+<body>
+    <h1>Revisión Manual de Documentos Desconocidos</h1>
+    <div class="doc-list">
+        {% for doc in documentos %}
+        <div class="doc-item">
+            <strong>{{ doc.filename }}</strong> <br>
+            <span>Proveedor: {{ doc.proveedor or 'N/A' }}</span> <br>
+            <span>Confianza: {{ doc.confidence }}</span> <br>
+            <span>Texto extraído:</span>
+            <pre style="max-height:150px;overflow:auto;background:#f8f8f8;border:1px solid #eee;padding:0.5em;">{{ doc.texto_extraido[:500] }}...</pre>
+            <div class="doc-actions">
+                <form method="post" action="/manual_review/set_category" style="display:inline-block;">
+                    <input type="hidden" name="doc_id" value="{{ doc.id }}">
+                    <label for="categoria">Categoría:</label>
+                    <select name="categoria" required>
+                        <option value="">Seleccionar...</option>
+                        <option value="notas_credito">Nota de Crédito</option>
+                        <option value="notas_debito">Nota de Débito</option>
+                        <option value="facturas">Factura</option>
+                        <option value="cheques">Cheque</option>
+                        <option value="liquidaciones_granos">Liquidación de Granos</option>
+                        <option value="remitos">Remito</option>
+                        <option value="cartas_porte">Carta de Porte</option>
+                        <option value="ordenes_compra">Orden de Compra</option>
+                        <option value="otros">Otros</option>
+                    </select>
+                    <button type="submit">Guardar</button>
+                </form>
+                <form method="get" action="/view_pdf/{{ doc.id }}" target="_blank" style="display:inline-block;">
+                    <button type="submit">Ver PDF</button>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <p>No hay documentos desconocidos pendientes de revisión.</p>
+        {% endfor %}
+    </div>
+</body>
+</html>

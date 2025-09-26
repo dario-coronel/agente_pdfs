@@ -13,7 +13,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, accuracy_score
 import sqlite3
-from config import DB_PATH, DOCUMENT_TYPES
+from config import DOCUMENT_TYPES
 
 logger = logging.getLogger(__name__)
 

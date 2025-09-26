@@ -1,0 +1,9 @@
+2025-09-25 09:39:40,591 - validators.pdf_validator - ERROR - Validación PDF - Error: Documento protegido por contraseña
+2025-09-25 09:39:40,595 - validators.pdf_validator - ERROR - Validación PDF - Error: Error validando contenido: document closed or encrypted
+2025-09-25 09:39:40,604 - validators.pdf_validator - ERROR - ❌ Archivo inválido: input_pdfs\51463_1176224902.pdf - Errores: 2
+2025-09-25 09:39:40,610 - processors.batch_processor - ERROR - ❌ 51463_1176224902.pdf: Archivo PDF inválido
+2025-09-25 09:39:40,619 - processors.document_processor - ERROR - Error obteniendo estadísticas: no such column: confidence
+2025-09-25 09:44:48,970 - processors.document_processor - ERROR - Error guardando en BD: table documentos has no column named fecha_documento
+2025-09-25 09:44:48,972 - processors.document_processor - ERROR - Error procesando input_pdfs\test_factura.pdf: table documentos has no column named fecha_documento
+2025-09-25 09:44:48,977 - processors.batch_processor - ERROR - ❌ test_factura.pdf: table documentos has no column named fecha_documento
+2025-09-25 09:44:48,984 - processors.document_processor - ERROR - Error obteniendo estadísticas: no such column: confidence

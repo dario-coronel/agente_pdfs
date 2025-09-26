@@ -3,13 +3,13 @@ Sistema de exportación avanzado para múltiples formatos
 """
 import csv
 import json
-import sqlite3
+import psycopg2
 import logging
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 from datetime import datetime
-from config import DB_PATH, EXPORT_CONFIG
+from config import EXPORT_CONFIG
 from utils import get_logger
 
 logger = get_logger(__name__)
@@ -223,80 +223,84 @@ class AdvancedDataExporter:
             # Convertir a lista de diccionarios
             data = [dict(row) for row in rows]
             
-            return data
-            
-        except Exception as e:
-            logger.error(f"Error obteniendo datos: {e}")
-            return []
-    
-    def get_summary_report(self) -> Dict:
-        """
-        Genera un reporte resumen de todos los documentos
-        
-        Returns:
-            Diccionario con estadísticas y resumen
-        """
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            cur = conn.cursor()
-            
-            # Estadísticas generales
-            cur.execute("SELECT COUNT(*) as total FROM documentos")
-            total = cur.fetchone()[0]
-            
-            # Documentos por tipo
-            cur.execute("""
-                SELECT tipo, COUNT(*) as count 
-                FROM documentos 
-                GROUP BY tipo 
-                ORDER BY count DESC
+            try:
+                from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB
+                conn = psycopg2.connect(
+                    host=PG_HOST,
+                    port=PG_PORT,
+                    user=PG_USER,
+                    password=PG_PASSWORD,
+                    dbname=PG_DB
+                )
+                cur = conn.cursor()
+                if doc_type:
+                    cur.execute("""
+                        SELECT * FROM documentos 
+                        WHERE tipo = %s 
+                        ORDER BY fecha_procesado DESC
+                    """, (doc_type,))
+                else:
+                    cur.execute("""
+                        SELECT * FROM documentos 
+                        ORDER BY fecha_procesado DESC
+                    """)
+                rows = cur.fetchall()
+                columns = [desc[0] for desc in cur.description]
+                conn.close()
+                # Convertir a lista de diccionarios
+                data = [dict(zip(columns, row)) for row in rows]
+                return data
+            except Exception as e:
+                logger.error(f"Error obteniendo datos: {e}")
+                return []
             """)
             by_type = dict(cur.fetchall())
             
             # Confianza promedio por tipo
-            cur.execute("""
-                SELECT tipo, AVG(confidence) as avg_confidence 
-                FROM documentos 
-                WHERE confidence IS NOT NULL
-                GROUP BY tipo 
-                ORDER BY avg_confidence DESC
-            """)
-            confidence_by_type = dict(cur.fetchall())
-            
-            # Documentos procesados por fecha
-            cur.execute("""
-                SELECT DATE(fecha_procesado) as fecha, COUNT(*) as count
-                FROM documentos 
-                GROUP BY DATE(fecha_procesado)
-                ORDER BY fecha DESC
-                LIMIT 7
-            """)
-            by_date = dict(cur.fetchall())
-            
-            conn.close()
-            
-            summary = {
-                "total_documents": total,
-                "documents_by_type": by_type,
-                "average_confidence_by_type": {
-                    k: round(v, 3) for k, v in confidence_by_type.items()
-                },
-                "documents_by_date": by_date,
-                "generated_at": datetime.now().isoformat()
-            }
-            
-            return summary
-            
-        except Exception as e:
-            logger.error(f"Error generando reporte resumen: {e}")
-            return {}
-    
-    def export_summary_report(self, output_path: str) -> bool:
-        """
-        Exporta un reporte resumen completo
-        
-        Args:
-            output_path: Ruta del archivo de salida
+            try:
+                from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB
+                conn = psycopg2.connect(
+                    host=PG_HOST,
+                    port=PG_PORT,
+                    user=PG_USER,
+                    password=PG_PASSWORD,
+                    dbname=PG_DB
+                )
+                cur = conn.cursor()
+                # Estadísticas generales
+                cur.execute("SELECT COUNT(*) as total FROM documentos")
+                total = cur.fetchone()[0]
+                # Documentos por tipo
+                cur.execute("""
+                    SELECT tipo, COUNT(*) as count 
+                    FROM documentos 
+                    GROUP BY tipo 
+                    ORDER BY count DESC
+                """)
+                by_type = dict(cur.fetchall())
+                # Confianza promedio por tipo
+                cur.execute("""
+                    SELECT tipo, AVG(confidence) as avg_confidence 
+                    FROM documentos 
+                    WHERE confidence IS NOT NULL
+                    GROUP BY tipo 
+                    ORDER BY avg_confidence DESC
+                """)
+                confidence_by_type = dict(cur.fetchall())
+                # Documentos procesados por fecha
+                cur.execute("""
+                    SELECT DATE(fecha_procesado) as fecha, COUNT(*) as count
+                    FROM documentos 
+                    GROUP BY DATE(fecha_procesado)
+                    ORDER BY fecha DESC
+                    LIMIT 7
+                """)
+                by_date = dict(cur.fetchall())
+                conn.close()
+                summary = {
+                    "total_documents": total,
+                    "documents_by_type": by_type,
+                    "average_confidence_by_type": {
             
         Returns:
             True si la exportación fue exitosa

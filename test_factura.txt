@@ -1,0 +1,1 @@
+FACTURA A 001-00001234\nEmpresa ABC S.A.\nCUIT: 30-12345678-9\nFecha: 25/09/2024\nImporte: ,000.50\n\nDetalle:\nProducto X - Cantidad: 2 - Precio Unitario: ,500.25\n\nSubtotal: ,000.50\nIVA: .00\nTotal: ,000.50

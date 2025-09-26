@@ -83,6 +83,38 @@ class CommercialDocumentClassifier:
                     r"n[úu]mero\s+(?:de\s+)?cuenta"
                 ],
                 "required_elements": ["cuenta", "saldo"]
+            },
+            "notas_credito": {
+                "keywords": ["nota de crédito", "nota de credito", "credit note", "nc", "devolución", "reintegro"],
+                "patterns": [
+                    r"nota\s+(?:de\s+)?cr[ée]dito",
+                    r"credit\s+note",
+                    r"devoluci[óo]n\s+(?:de\s+)?(?:dinero|importe|pago)",
+                    r"reintegro\s+(?:de|por)",
+                    r"anulaci[óo]n\s+(?:de\s+)?(?:factura|cobro)",
+                    r"ajuste\s+(?:a\s+)?favor",
+                    r"bonificaci[óo]n\s+(?:por|de)",
+                    r"descuento\s+(?:posterior|aplicado)",
+                    r"cr[ée]dito\s+(?:a\s+)?favor",
+                    r"reversi[óo]n\s+(?:de\s+)?cargo"
+                ],
+                "required_elements": ["nota", "credito", "importe"]
+            },
+            "notas_debito": {
+                "keywords": ["nota de débito", "nota de debito", "debit note", "nd", "cargo adicional", "ajuste"],
+                "patterns": [
+                    r"nota\s+(?:de\s+)?d[ée]bito",
+                    r"debit\s+note",
+                    r"cargo\s+(?:adicional|extra|posterior)",
+                    r"ajuste\s+(?:en\s+contra|negativo)",
+                    r"recargo\s+(?:por|de)",
+                    r"inter[ée]s\s+(?:por\s+)?mora",
+                    r"penalizaci[óo]n\s+(?:por|de)",
+                    r"comisi[óo]n\s+(?:bancaria|por)",
+                    r"gasto\s+(?:administrativo|bancario)",
+                    r"d[ée]bito\s+(?:en\s+)?cuenta"
+                ],
+                "required_elements": ["nota", "debito", "importe"]
             }
         }
         
@@ -92,7 +124,9 @@ class CommercialDocumentClassifier:
             "pagos": ["pago", "payment", "abono", "cancelación", "liquidación", "settlement"],
             "monedas": ["pesos", "dollars", "usd", "ars", "eur", "euros", "uyu"],
             "cuentas": ["cuenta", "account", "cbu", "alias", "iban", "swift", "routing"],
-            "conceptos": ["concepto", "motivo", "razón", "descripción", "detalle", "observaciones"]
+            "conceptos": ["concepto", "motivo", "razón", "descripción", "detalle", "observaciones"],
+            "ajustes": ["devolución", "reintegro", "bonificación", "descuento", "cargo", "recargo", "ajuste"],
+            "notas": ["nota", "comprobante", "documento", "emisión", "anulación", "reversión"]
         }
     
     def classify_commercial_document(self, text: str) -> Tuple[str, float, Dict]:
@@ -197,7 +231,10 @@ class CommercialDocumentClassifier:
             "cheque": [r"cheque", r"check", r"ch\s+n", r"n[úu]mero.*cheque"],
             "recibo": [r"recibo", r"receipt", r"comprobante", r"recib[íi]"],
             "cuenta": [r"cuenta", r"account", r"cta", r"n[úu]mero.*cuenta"],
-            "saldo": [r"saldo", r"balance", r"disponible", r"movimiento"]
+            "saldo": [r"saldo", r"balance", r"disponible", r"movimiento"],
+            "nota": [r"nota", r"note", r"comprobante", r"documento"],
+            "credito": [r"cr[ée]dito", r"credit", r"devoluci[óo]n", r"reintegro", r"bonificaci[óo]n"],
+            "debito": [r"d[ée]bito", r"debit", r"cargo", r"recargo", r"ajuste"]
         }
         
         if element in element_patterns:
@@ -238,7 +275,17 @@ class CommercialDocumentClassifier:
             if concept in text:
                 bonus += 0.02
         
-        return min(bonus, 0.25)  # Máximo 25% de bonificación
+        # Bonificación por términos de ajustes (notas de crédito/débito)
+        for adjustment_term in self.commercial_terms["ajustes"]:
+            if adjustment_term in text:
+                bonus += 0.04
+        
+        # Bonificación por términos de notas
+        for note_term in self.commercial_terms["notas"]:
+            if note_term in text:
+                bonus += 0.03
+        
+        return min(bonus, 0.30)  # Máximo 30% de bonificación (incrementado)
     
     def get_commercial_classification_details(self, text: str) -> Dict:
         """

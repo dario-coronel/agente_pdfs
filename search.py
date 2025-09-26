@@ -1,11 +1,18 @@
-import sqlite3
+import psycopg2
 import sys
 
 DB_PATH = "db/documentos.db"
 
 
 def search_documents(cuit=None, proveedor=None, tipo=None):
-    conn = sqlite3.connect(DB_PATH)
+    from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB
+    conn = psycopg2.connect(
+        host=PG_HOST,
+        port=PG_PORT,
+        user=PG_USER,
+        password=PG_PASSWORD,
+        dbname=PG_DB
+    )
     cur = conn.cursor()
 
     query = "SELECT id, filename, tipo, cuit, proveedor, fecha_procesado FROM documentos WHERE 1=1"
@@ -13,7 +20,7 @@ def search_documents(cuit=None, proveedor=None, tipo=None):
 
     if cuit:
         query += " AND cuit = ?"
-        params.append(cuit)
+    from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB
 
     if proveedor:
         query += " AND proveedor LIKE ?"

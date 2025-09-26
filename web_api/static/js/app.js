@@ -1,3 +1,30 @@
+    // Procesar documentos y mostrar resumen de importación
+    const response = await fetch(API_ENDPOINTS.process, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enable_ml: true, enable_layout: true, move_files: true })
+    });
+    const result = await response.json();
+    if (result.import_summary && Object.keys(result.import_summary).length > 0) {
+        showImportSummary(result.import_summary);
+    }
+}
+
+function showImportSummary(summary) {
+    const panel = document.getElementById('import-summary-panel');
+    const list = document.getElementById('import-summary-list');
+    if (!panel || !list) return;
+    let html = '<ul class="list-group">';
+    Object.entries(summary).forEach(([tipo, cantidad]) => {
+        html += `<li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>${tipo}</span>
+            <span class="badge bg-success">${cantidad}</span>
+        </li>`;
+    });
+    html += '</ul>';
+    list.innerHTML = html;
+    panel.style.display = 'block';
+}
 /**
  * Agente Clasificador PDF - Web Interface
  * JavaScript principal para la interfaz web
@@ -179,17 +206,16 @@ function updateTypesDistribution(byType) {
     const container = document.getElementById('types-distribution');
     if (!container || !byType) return;
     
-    const colors = {
-        'facturas': '#198754',
-        'remitos': '#0dcaf0', 
-        'notas_credito': '#ffc107',
-        'notas_debito': '#dc3545',
-        'desconocido': '#6c757d'
-    };
-    
+    // Usar el mismo array y orden de colores que el gráfico de torta
+    const colorArray = [
+        '#198754', '#0dcaf0', '#ffc107', '#dc3545', '#6c757d',
+        '#fd7e14', '#6f42c1', '#20c997', '#f8f9fa', '#495057'
+    ];
+    const types = Object.keys(byType);
     let html = '';
-    Object.entries(byType).forEach(([type, count]) => {
-        const color = colors[type] || '#6c757d';
+    types.forEach((type, idx) => {
+        const color = colorArray[idx % colorArray.length];
+        const count = byType[type];
         html += `
             <div class="type-distribution-item">
                 <span>
@@ -200,7 +226,6 @@ function updateTypesDistribution(byType) {
             </div>
         `;
     });
-    
     container.innerHTML = html;
 }
 
@@ -375,14 +400,24 @@ function displayDocuments(documents) {
         return;
     }
     
-    tbody.innerHTML = documents.map(doc => `
+    // Colores sincronizados con el gráfico y la lista lateral
+    const colors = {
+        'facturas': '#198754',
+        'remitos': '#0dcaf0', 
+        'notas_credito': '#ffc107',
+        'notas_debito': '#dc3545',
+        'desconocido': '#6c757d'
+    };
+    tbody.innerHTML = documents.map(doc => {
+        const color = colors[doc.tipo] || '#6c757d';
+        return `
         <tr>
             <td>
                 <div class="fw-semibold">${doc.filename}</div>
                 <small class="text-muted">ID: ${doc.id}</small>
             </td>
             <td>
-                <span class="badge badge-${doc.tipo || 'desconocido'}">${doc.tipo || 'Desconocido'}</span>
+                <span class="badge" style="background-color: ${color}; color: #fff;">${doc.tipo || 'Desconocido'}</span>
             </td>
             <td>${doc.cuit || '-'}</td>
             <td>${doc.proveedor || '-'}</td>
@@ -406,9 +441,13 @@ function displayDocuments(documents) {
                 <button class="btn btn-sm btn-outline-primary" onclick="showDocumentDetails(${doc.id})">
                     <i class="bi bi-eye"></i>
                 </button>
+                <a class="btn btn-sm btn-outline-secondary" href="/view_pdf/${doc.id}" target="_blank" title="Ver PDF">
+                    <i class="bi bi-file-earmark-pdf"></i>
+                </a>
             </td>
         </tr>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function getConfidenceLevel(confidence) {
@@ -846,9 +885,12 @@ function showProcessingStarted(result) {
         statusDiv.innerHTML = `<i class="bi bi-gear me-2 text-warning"></i>Procesando ${filesCount} archivos...`;
         statusDiv.className = 'alert alert-warning processing-active';
     }
-    
     if (progressDiv) {
         progressDiv.classList.remove('d-none');
+    }
+    // Mostrar resumen de importación si existe
+    if (result.import_summary && Object.keys(result.import_summary).length > 0) {
+        showImportSummary(result.import_summary);
     }
 }
 

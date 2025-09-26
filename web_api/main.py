@@ -4,22 +4,22 @@ Interfaz REST profesional para consultas y gestión de documentos
 """
 import os
 import sys
-import sqlite3
 import json
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, Request, Form
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 import uvicorn
 
 # Agregar el directorio padre al path para importaciones
 sys.path.append(str(Path(__file__).parent.parent))
 
-from config import DB_PATH, OUTPUT_DIR, INPUT_DIR
+from config import OUTPUT_DIR, INPUT_DIR
 from processors import DocumentProcessor, BatchProcessor
 from exporters import AdvancedDataExporter
 from validators import PDFValidator
@@ -95,9 +95,19 @@ class ProcessRequest(BaseModel):
 
 def get_db_connection():
     """Obtiene conexión a la base de datos"""
-    if not os.path.exists(DB_PATH):
-        raise HTTPException(status_code=500, detail="Base de datos no encontrada")
-    return sqlite3.connect(DB_PATH)
+    import psycopg2
+    from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB
+    try:
+        conn = psycopg2.connect(
+            host=PG_HOST,
+            port=PG_PORT,
+            user=PG_USER,
+            password=PG_PASSWORD,
+            dbname=PG_DB
+        )
+        return conn
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error de conexión a PostgreSQL: {str(e)}")
 
 
 def clean_numpy_values(obj):
@@ -137,39 +147,31 @@ def build_query_conditions(filters: SearchFilters) -> tuple:
     params = []
     
     if filters.cuit:
-        conditions.append("cuit LIKE ?")
+        conditions.append("cuit LIKE %s")
         params.append(f"%{filters.cuit}%")
-    
     if filters.proveedor:
-        conditions.append("proveedor LIKE ?")
+        conditions.append("proveedor LIKE %s")
         params.append(f"%{filters.proveedor}%")
-    
     if filters.tipo:
-        conditions.append("tipo = ?")
+        conditions.append("tipo = %s")
         params.append(filters.tipo)
-    
     if filters.fecha_desde:
-        conditions.append("fecha_documento >= ?")
+        conditions.append("fecha_documento >= %s")
         params.append(filters.fecha_desde)
-    
     if filters.fecha_hasta:
-        conditions.append("fecha_documento <= ?")
+        conditions.append("fecha_documento <= %s")
         params.append(filters.fecha_hasta)
-    
     if filters.confidence_min is not None:
-        conditions.append("confidence >= ?")
+        conditions.append("confidence >= %s")
         params.append(filters.confidence_min)
-    
-    # Para filtros de monto, necesitamos convertir el campo TEXT a REAL
+    # Para filtros de monto, convertir el campo a NUMERIC en PostgreSQL
     if filters.monto_min is not None:
-        conditions.append("CAST(REPLACE(REPLACE(monto, '$', ''), ',', '.') AS REAL) >= ?")
+        conditions.append("CAST(REPLACE(REPLACE(monto, '$', ''), ',', '.') AS NUMERIC) >= %s")
         params.append(filters.monto_min)
-    
     if filters.monto_max is not None:
-        conditions.append("CAST(REPLACE(REPLACE(monto, '$', ''), ',', '.') AS REAL) <= ?")
+        conditions.append("CAST(REPLACE(REPLACE(monto, '$', ''), ',', '.') AS NUMERIC) <= %s")
         params.append(filters.monto_max)
-    
-    where_clause = " AND ".join(conditions) if conditions else "1=1"
+    where_clause = " AND ".join(conditions) if conditions else "TRUE"
     return where_clause, params
 
 
@@ -399,9 +401,8 @@ async def get_documents(
                    detalles_clasificacion
             FROM documentos 
             ORDER BY {order_by} {order_direction}
-            LIMIT ? OFFSET ?
+            LIMIT %s OFFSET %s
         """
-        
         cursor.execute(query, (limit, skip))
         rows = cursor.fetchall()
         conn.close()
@@ -459,9 +460,8 @@ async def search_documents(
             FROM documentos 
             WHERE {where_clause}
             ORDER BY {order_by} {order_direction}
-            LIMIT ? OFFSET ?
+            LIMIT %s OFFSET %s
         """
-        
         params.extend([limit, skip])
         cursor.execute(query, params)
         rows = cursor.fetchall()
@@ -501,7 +501,7 @@ async def get_document(document_id: int):
             SELECT id, filename, tipo, cuit, proveedor, proveedor_id,
                    fecha_documento, monto, confidence, fecha_procesado,
                    detalles_clasificacion
-            FROM documentos WHERE id = ?
+            FROM documentos WHERE id = %s
         """, (document_id,))
         
         row = cursor.fetchone()
@@ -540,7 +540,6 @@ async def get_statistics():
         # Total de documentos
         cursor.execute("SELECT COUNT(*) FROM documentos")
         total_docs = cursor.fetchone()[0]
-        
         # Distribución por tipo
         cursor.execute("""
             SELECT tipo, COUNT(*) 
@@ -549,7 +548,6 @@ async def get_statistics():
             ORDER BY COUNT(*) DESC
         """)
         by_type = dict(cursor.fetchall())
-        
         # Distribución por proveedor
         cursor.execute("""
             SELECT COALESCE(proveedor, 'Sin proveedor'), COUNT(*) 
@@ -559,16 +557,14 @@ async def get_statistics():
             LIMIT 10
         """)
         by_supplier = dict(cursor.fetchall())
-        
         # Confianza promedio
         cursor.execute("SELECT AVG(confidence) FROM documentos WHERE confidence IS NOT NULL")
         avg_conf_result = cursor.fetchone()[0]
         avg_confidence = float(avg_conf_result) if avg_conf_result else 0.0
-        
         # Documentos recientes (últimas 24 horas)
         cursor.execute("""
             SELECT COUNT(*) FROM documentos 
-            WHERE datetime(fecha_procesado) > datetime('now', '-1 day')
+            WHERE TO_TIMESTAMP(fecha_procesado, 'YYYY-MM-DD HH24:MI:SS') > NOW() - INTERVAL '1 day'
         """)
         recent_docs = cursor.fetchone()[0]
         
@@ -593,13 +589,10 @@ async def get_document_types():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
         cursor.execute("SELECT DISTINCT tipo FROM documentos ORDER BY tipo")
         types = [row[0] for row in cursor.fetchall()]
         conn.close()
-        
         return {"types": types}
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error obteniendo tipos: {str(e)}")
 
@@ -684,33 +677,41 @@ async def process_documents(
                 print(f"🔄 Iniciando procesamiento de {len(pdf_files)} archivos...")
                 print(f"📁 Directorio de entrada: {input_path}")
                 print(f"⚙️  Configuración: ML={request.enable_ml}, Layout={request.enable_layout}")
-                
                 processor = BatchProcessor(
                     enable_ml=request.enable_ml,
                     enable_layout=request.enable_layout
                 )
-                
-                # Usar la ruta absoluta
                 print(f"🚀 Llamando process_directory con: {str(input_path)}")
                 result = processor.process_directory(str(input_path))
                 print(f"✅ Procesamiento completado: {result}")
-                
+                # Guardar resumen por tipo en un archivo temporal para mostrarlo luego
+                with open("import_summary.json", "w", encoding="utf-8") as f:
+                    json.dump(result.get("summary", {}), f, ensure_ascii=False, indent=2)
                 return result
             except Exception as e:
                 print(f"❌ Error en procesamiento background: {e}")
                 import traceback
                 traceback.print_exc()
                 raise e
-        
+
         background_tasks.add_task(process_in_background)
-        
+
+        # Si existe el resumen previo, mostrarlo
+        import_summary = {}
+        try:
+            with open("import_summary.json", "r", encoding="utf-8") as f:
+                import_summary = json.load(f)
+        except Exception:
+            pass
+
         return {
             "status": "processing_started",
             "message": f"Procesamiento iniciado: {len(pdf_files)} archivos encontrados",
             "timestamp": datetime.now().isoformat(),
             "files_found": len(pdf_files),
             "input_directory": str(input_path),
-            "file_list": [f.name for f in pdf_files[:10]]  # Mostrar hasta 10 archivos
+            "file_list": [f.name for f in pdf_files[:10]],  # Mostrar hasta 10 archivos
+            "import_summary": import_summary
         }
         
     except HTTPException:
@@ -788,3 +789,57 @@ def start_server():
 
 if __name__ == "__main__":
     start_server()
+
+from fastapi import Request, Form
+from fastapi.responses import RedirectResponse
+from fastapi.templating import Jinja2Templates
+
+templates = Jinja2Templates(directory=str(templates_path))
+
+@app.get("/manual_review", response_class=HTMLResponse)
+async def manual_review(request: Request):
+    """Vista para revisión manual de documentos desconocidos"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, filename, proveedor, confidence, texto_extraido FROM documentos WHERE tipo = %s LIMIT 30", ('desconocido',))
+    docs = [
+        {
+            "id": row[0],
+            "filename": row[1],
+            "proveedor": row[2],
+            "confidence": row[3],
+            "texto_extraido": row[4] or ""
+        }
+        for row in cursor.fetchall()
+    ]
+    conn.close()
+    return templates.TemplateResponse("manual_review.html", {"request": request, "documentos": docs})
+
+@app.post("/manual_review/set_category")
+async def set_manual_category(request: Request, doc_id: int = Form(...), categoria: str = Form(...)):
+    """Actualiza la categoría manualmente en la base de datos"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE documentos SET tipo = %s WHERE id = %s", (categoria, doc_id))
+    conn.commit()
+    conn.close()
+    # Redirigir de nuevo a la vista de revisión
+    return RedirectResponse(url="/manual_review", status_code=303)
+
+@app.get("/view_pdf/{doc_id}", response_class=FileResponse)
+async def view_pdf(doc_id: int):
+    """Devuelve el PDF procesado para visualización"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT filename, tipo FROM documentos WHERE id = %s", (doc_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    filename, tipo = row
+    # Limpiar espacios y saltos de línea del nombre de archivo
+    filename = filename.strip().replace('\n', '').replace('\r', '')
+    pdf_path = os.path.join(OUTPUT_DIR, tipo, filename)
+    if not os.path.exists(pdf_path):
+        raise HTTPException(status_code=404, detail=f"Archivo PDF no encontrado en salida: {pdf_path}")
+    return FileResponse(pdf_path, media_type="application/pdf", filename=filename)

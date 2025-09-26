@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 from datetime import datetime
-from config import DB_PATH, EXPORT_CONFIG
+from config import EXPORT_CONFIG
 from utils import get_logger
 
 logger = get_logger(__name__)
@@ -54,7 +54,7 @@ class AdvancedDataExporter:
     """Exportador avanzado con soporte para múltiples formatos y opciones"""
     
     def __init__(self, db_path: str = None):
-        self.db_path = db_path or DB_PATH
+        self.db_path = None  # Ya no se usa DB_PATH, solo PostgreSQL
         self.config = EXPORT_CONFIG
         self.supported_formats = ["csv", "json", "xml"]
         

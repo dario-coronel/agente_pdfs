@@ -7,7 +7,13 @@ import os
 INPUT_DIR = "input_pdfs"
 OUTPUT_DIR = "output_pdfs" 
 DB_DIR = "db"
-DB_PATH = os.path.join(DB_DIR, "documentos.db")
+
+# Configuración para PostgreSQL
+PG_HOST = "localhost"
+PG_PORT = 5432
+PG_USER = "postgres"
+PG_PASSWORD = "Suecia2372"
+PG_DB = "postgres"
 
 # 🔍 Configuración de clasificación
 DOCUMENT_TYPES = {

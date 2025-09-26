@@ -1,0 +1,135 @@
+{
+  "telecom_argentina": {
+    "names": [
+      "TELECOM ARGENTINA",
+      "TELECOM",
+      "PERSONAL"
+    ],
+    "cuit": "30-50000109-4",
+    "document_patterns": {
+      "facturas": {
+        "specific_terms": [
+          "SERVICIOS DE TELECOMUNICACIONES",
+          "PLAN PERSONAL"
+        ],
+        "layout_indicators": [
+          "CONSUMO DEL PERÍODO",
+          "PRÓXIMO VENCIMIENTO"
+        ],
+        "confidence_boost": 0.3
+      }
+    },
+    "contact_info": {
+      "website": "www.telecom.com.ar",
+      "phone": "0800-555-0000"
+    }
+  },
+  "edesur": {
+    "names": [
+      "EDESUR S.A.",
+      "EMPRESA DISTRIBUIDORA SUR"
+    ],
+    "cuit": "30-65511620-2",
+    "document_patterns": {
+      "facturas": {
+        "specific_terms": [
+          "DISTRIBUCIÓN ELÉCTRICA",
+          "ENERGÍA CONSUMIDA",
+          "CARGO FIJO"
+        ],
+        "layout_indicators": [
+          "KWH CONSUMIDOS",
+          "PRÓXIMO VENCIMIENTO"
+        ],
+        "confidence_boost": 0.3
+      }
+    }
+  },
+  "metrogas": {
+    "names": [
+      "METROGAS S.A.",
+      "DISTRIBUIDORA DE GAS"
+    ],
+    "cuit": "30-61469304-9",
+    "document_patterns": {
+      "facturas": {
+        "specific_terms": [
+          "DISTRIBUCIÓN DE GAS",
+          "M3 CONSUMIDOS",
+          "GAS NATURAL"
+        ],
+        "layout_indicators": [
+          "MEDICIÓN ANTERIOR",
+          "MEDICIÓN ACTUAL"
+        ],
+        "confidence_boost": 0.3
+      }
+    }
+  },
+  "mercadolibre": {
+    "names": [
+      "MERCADOLIBRE S.R.L.",
+      "MELI",
+      "MERCADO LIBRE"
+    ],
+    "cuit": "30-70308853-4",
+    "document_patterns": {
+      "facturas": {
+        "specific_terms": [
+          "COMISIÓN POR VENTA",
+          "MARKETPLACE",
+          "PUBLICACIÓN"
+        ],
+        "layout_indicators": [
+          "DETALLE DE VENTAS",
+          "COMISIONES"
+        ],
+        "confidence_boost": 0.2
+      },
+      "recibos": {
+        "specific_terms": [
+          "COBRO AUTOMÁTICO",
+          "DÉBITO AUTOMÁTICO"
+        ],
+        "layout_indicators": [
+          "MEDIO DE PAGO"
+        ],
+        "confidence_boost": 0.2
+      }
+    }
+  },
+  "andreani": {
+    "names": [
+      "ANDREANI LOGÍSTICA S.A.",
+      "ANDREANI",
+      "GRUPO ANDREANI"
+    ],
+    "cuit": "30-50010085-2",
+    "document_patterns": {
+      "cartas_porte": {
+        "specific_terms": [
+          "TRANSPORTE DE CORRESPONDENCIA",
+          "COURIER",
+          "ENVÍO"
+        ],
+        "layout_indicators": [
+          "DESTINATARIO",
+          "REMITENTE",
+          "CÓDIGO DE SEGUIMIENTO"
+        ],
+        "confidence_boost": 0.4
+      },
+      "remitos": {
+        "specific_terms": [
+          "ENTREGA A DOMICILIO",
+          "SERVICIO PUERTA A PUERTA"
+        ],
+        "layout_indicators": [
+          "TRACKING",
+          "CÓDIGO POSTAL"
+        ],
+        "confidence_boost": 0.3
+      }
+    }
+  }
+}
