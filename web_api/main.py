@@ -533,10 +533,10 @@ async def get_document(document_id: int):
 @app.get("/api/stats", response_model=StatsResponse)
 async def get_statistics():
     """Obtiene estadísticas del sistema"""
+    import logging
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
         # Total de documentos
         cursor.execute("SELECT COUNT(*) FROM documentos")
         total_docs = cursor.fetchone()[0]
@@ -562,14 +562,16 @@ async def get_statistics():
         avg_conf_result = cursor.fetchone()[0]
         avg_confidence = float(avg_conf_result) if avg_conf_result else 0.0
         # Documentos recientes (últimas 24 horas)
-        cursor.execute("""
-            SELECT COUNT(*) FROM documentos 
-            WHERE TO_TIMESTAMP(fecha_procesado, 'YYYY-MM-DD HH24:MI:SS') > NOW() - INTERVAL '1 day'
-        """)
-        recent_docs = cursor.fetchone()[0]
-        
+        try:
+            cursor.execute("""
+                SELECT COUNT(*) FROM documentos 
+                WHERE TO_TIMESTAMP(fecha_procesado, 'YYYY-MM-DD HH24:MI:SS') > NOW() - INTERVAL '1 day'
+            """)
+            recent_docs = cursor.fetchone()[0]
+        except Exception as date_exc:
+            logging.error(f"Error en conversión de fecha_procesado: {date_exc}")
+            recent_docs = 0
         conn.close()
-        
         return StatsResponse(
             total_documents=total_docs,
             by_type=by_type,
@@ -578,8 +580,9 @@ async def get_statistics():
             recent_documents=recent_docs,
             processing_errors=0  # TODO: Implementar tracking de errores
         )
-        
     except Exception as e:
+        import traceback
+        logging.error(f"Error obteniendo estadísticas: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Error obteniendo estadísticas: {str(e)}")
 
 

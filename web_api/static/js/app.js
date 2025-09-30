@@ -1,4 +1,5 @@
-    // Procesar documentos y mostrar resumen de importación
+// Procesar documentos y mostrar resumen de importación
+async function procesarDocumentos() {
     const response = await fetch(API_ENDPOINTS.process, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
